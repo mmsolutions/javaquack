@@ -32,7 +32,7 @@ public class DuckTypingTest {
         duckTyping.cast(new TestClass(), TestInterface.class);
         duckTyping.cast(new TestClass(), TestInterface.class);
 
-        Assert.assertEquals(1, duckTyping.cache.size());
+        Assert.assertEquals(1, DuckTyping.cache.size());
     }
 
 }
