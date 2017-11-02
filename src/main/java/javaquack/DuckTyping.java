@@ -22,12 +22,20 @@ public class DuckTyping {
     protected static final Map<String, Class<?>> cache = new ConcurrentHashMap<>();
 
     @SuppressWarnings("unchecked")
-    public <S, D> D cast(S sourceObject, Class<D> destinationInterface) {
+    public static <S, D> D cast(S sourceObject, Class<D> destinationInterface) {
         try {
+            if (sourceObject == null) {
+                return null;
+            }
+
+            if (destinationInterface.isInstance(sourceObject)) {
+                return destinationInterface.cast(sourceObject);
+            }
+
             Class<? extends D> generatedClass =
-                    (Class<? extends D>) cache.computeIfAbsent(
-                            generateName(sourceObject.getClass(), destinationInterface),
-                            key -> generateClass(sourceObject.getClass(), destinationInterface, key));
+                (Class<? extends D>) cache.computeIfAbsent(
+                    generateName(sourceObject.getClass(), destinationInterface),
+                    key -> generateClass(sourceObject.getClass(), destinationInterface, key));
 
             D generatedClassInstance = generatedClass.newInstance();
 
@@ -39,32 +47,32 @@ public class DuckTyping {
         }
     }
 
-    private <S, D> Class<? extends D> generateClass(Class<S> sourceClass, Class<D> destinationInterface, String name) {
+    public static <S, D> String generateName(Class<S> sourceClass, Class<D> destinationInterface) {
+        return destinationInterface.getCanonicalName() +
+            GENERATED_CLASS_NAME_DELIMITER +
+            Arrays.stream(sourceClass.getCanonicalName().split(SOURCE_CLASS_CANONICAL_NAME_SPLIT_REGEX))
+                .map(token -> token.substring(0, 1).toUpperCase() + token.substring(1))
+                .reduce("", String::concat);
+    }
+
+    private static <S, D> Class<? extends D> generateClass(Class<S> sourceClass, Class<D> destinationInterface, String name) {
         DynamicType.Builder<? extends D> dynamicTypeBuilder =
-                new ByteBuddy()
-                        .subclass(destinationInterface)
-                        .defineField(QUACK_DELEGATE_FIELD_NAME, sourceClass, Visibility.PUBLIC)
-                        .name(name);
+            new ByteBuddy()
+                .subclass(destinationInterface)
+                .defineField(QUACK_DELEGATE_FIELD_NAME, sourceClass, Visibility.PUBLIC)
+                .name(name);
 
         for (Method method : destinationInterface.getMethods()) {
             dynamicTypeBuilder =
-                    dynamicTypeBuilder
-                            .method(ElementMatchers.isDeclaredBy(destinationInterface).and(ElementMatchers.is(method)))
-                            .intercept(MethodDelegation.toField(QUACK_DELEGATE_FIELD_NAME));
+                dynamicTypeBuilder
+                    .method(ElementMatchers.isDeclaredBy(destinationInterface).and(ElementMatchers.is(method)))
+                    .intercept(MethodDelegation.toField(QUACK_DELEGATE_FIELD_NAME));
         }
 
         return dynamicTypeBuilder
-                .make()
-                .load(destinationInterface.getClassLoader())
-                .getLoaded();
-    }
-
-    private <S, D> String generateName(Class<S> sourceClass, Class<D> destinationInterface) {
-        return destinationInterface.getCanonicalName() +
-                GENERATED_CLASS_NAME_DELIMITER +
-                Arrays.stream(sourceClass.getCanonicalName().split(SOURCE_CLASS_CANONICAL_NAME_SPLIT_REGEX))
-                        .map(token -> token.substring(0, 1).toUpperCase() + token.substring(1))
-                        .reduce("", String::concat);
+            .make()
+            .load(destinationInterface.getClassLoader())
+            .getLoaded();
     }
 
 }

@@ -1,6 +1,6 @@
 package deep.pkg;
 
-public class TestClass {
+public class TestAClass {
 
     private String field1;
 
