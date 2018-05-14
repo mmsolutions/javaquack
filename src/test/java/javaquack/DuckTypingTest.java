@@ -45,18 +45,20 @@ public class DuckTypingTest {
 
     @Test
     public void shouldNotCreateProxyClass() {
-        TestInterface testInterface = null;
-
-        testInterface = DuckTyping.cast(new TestIClass(), TestInterface.class);
-        testInterface = DuckTyping.cast(null, TestInterface.class);
-        testInterface = DuckTyping.cast(new TestIClass(), TestInterface.class);
-
+        DuckTyping.cast(new TestIClass(), TestInterface.class);
+        DuckTyping.cast(null, TestInterface.class);
+        DuckTyping.cast(new TestIClass(), TestInterface.class);
         Assert.assertNull(DuckTyping.cache.get(DuckTyping.generateName(TestIClass.class, TestInterface.class)));
     }
 
     @Test(expected = DuckTypingException.class)
     public void shouldThrowDuckTypingExceptionWhenCastingNotToInterface() {
         DuckTyping.cast(new Object(), Object.class);
+    }
+
+    @Test(expected = DuckTypingException.class)
+    public void shouldThrowDuckTypingExceptionWhenDestinationInterfaceIsNull() {
+        DuckTyping.cast(new Object(), null);
     }
 
 }

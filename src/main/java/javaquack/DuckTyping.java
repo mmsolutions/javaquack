@@ -26,6 +26,10 @@ public class DuckTyping {
     @SuppressWarnings("unchecked")
     public static <S, D> D cast(S sourceObject, Class<D> destinationInterface) {
         try {
+            if (destinationInterface == null) {
+                throw new IllegalStateException("Destination interface cannot be null");
+            }
+
             if (!destinationInterface.isInterface()) {
                 throw new IllegalStateException(destinationInterface.getCanonicalName() + " is not interface");
             }
