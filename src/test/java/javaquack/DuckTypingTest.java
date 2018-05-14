@@ -54,4 +54,9 @@ public class DuckTypingTest {
         Assert.assertNull(DuckTyping.cache.get(DuckTyping.generateName(TestIClass.class, TestInterface.class)));
     }
 
+    @Test(expected = DuckTypingException.class)
+    public void shouldThrowDuckTypingExceptionWhenCastingNotToInterface() {
+        DuckTyping.cast(new Object(), Object.class);
+    }
+
 }
