@@ -6,6 +6,8 @@ public class TestAClass {
 
     private String field2;
 
+    protected TestInterface testInterface = new TestIClass();
+
     public String getField1() {
         return field1;
     }
@@ -22,8 +24,8 @@ public class TestAClass {
         this.field2 = field2;
     }
 
-    public String testClassMethod(String parameter1, Integer parameter2) {
-        return parameter1 + " " + parameter2;
+    public String testMethodOne(String parameter1, Integer parameter2) {
+        return testInterface.testMethodOne(parameter1, parameter2);
     }
 
 }

@@ -10,6 +10,8 @@ public interface TestInterface {
 
     void setField2(String field2);
 
-    String testInterfaceMethod(String argument1, Integer argument2);
+    String testMethodOne(String argument1, Integer argument2);
+
+    String testMethodTwo(String argument1, Integer argument2);
 
 }

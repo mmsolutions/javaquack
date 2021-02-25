@@ -27,8 +27,13 @@ public class TestIClass implements TestInterface {
     }
 
     @Override
-    public String testInterfaceMethod(String parameter1, Integer parameter2) {
+    public String testMethodOne(String parameter1, Integer parameter2) {
         return parameter1 + " " + parameter2;
+    }
+
+    @Override
+    public String testMethodTwo(String parameter1, Integer parameter2) {
+        return parameter1 + "." + parameter2;
     }
 
 }

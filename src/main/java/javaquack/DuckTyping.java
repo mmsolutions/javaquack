@@ -10,18 +10,19 @@ import net.bytebuddy.implementation.MethodDelegation;
 import net.bytebuddy.matcher.ElementMatchers;
 
 import java.lang.reflect.Method;
+import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class DuckTyping {
 
-    public static final String QUACK_DELEGATE_FIELD_NAME = "quackDelegate";
+    private static final String QUACK_DELEGATE_FIELD_NAME = "quackDelegate";
 
-    public static final String GENERATED_CLASS_NAME_DELIMITER = "DelegationTo";
+    private static final String GENERATED_CLASS_NAME_DELIMITER = "DelegatedTo";
 
-    public static final String SOURCE_CLASS_CANONICAL_NAME_SPLIT_REGEX = "\\.";
+    private static final String SOURCE_CLASS_CANONICAL_NAME_SPLIT_REGEX = "\\.";
 
-    protected static final Map<String, Class<?>> cache = new ConcurrentHashMap<>();
+    private static final Map<String, Class<?>> cache = new ConcurrentHashMap<>();
 
     @SuppressWarnings("unchecked")
     public static <S, D> D cast(S sourceObject, Class<D> destinationInterface) {
@@ -71,6 +72,10 @@ public class DuckTyping {
         return stringBuilder.toString();
     }
 
+    public static Map<String, Class<?>> getCache() {
+        return Collections.unmodifiableMap(cache);
+    }
+
     private static <S, D> Class<? extends D> generateClass(Class<S> sourceClass, Class<D> destinationInterface, String name) {
         try {
             DynamicType.Builder<? extends D> dynamicTypeBuilder =
@@ -86,7 +91,7 @@ public class DuckTyping {
                 dynamicTypeBuilder =
                     dynamicTypeBuilder
                         .method(ElementMatchers.is(method))
-                        .intercept(MethodDelegation.toField(QUACK_DELEGATE_FIELD_NAME));
+                        .intercept(MethodDelegation.toField(QUACK_DELEGATE_FIELD_NAME).filter(ElementMatchers.hasMethodName(method.getName())));
             }
 
             return dynamicTypeBuilder
