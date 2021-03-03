@@ -24,6 +24,10 @@ public class TestAClass {
         this.field2 = field2;
     }
 
+    public String aMethod(String parameter1, Integer parameter2) {
+        return parameter1 + ":" + parameter2;
+    }
+
     public String testMethodOne(String parameter1, Integer parameter2) {
         return testInterface.testMethodOne(parameter1, parameter2);
     }
