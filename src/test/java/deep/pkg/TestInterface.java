@@ -14,4 +14,8 @@ public interface TestInterface {
 
     String testMethodTwo(String argument1, Integer argument2);
 
+    default String helloWorld() {
+        return "Hello World!";
+    }
+
 }

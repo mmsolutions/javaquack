@@ -88,10 +88,12 @@ public class DuckTyping {
                     .intercept(MethodCall.invoke(Object.class.getConstructor()).onSuper().andThen(FieldAccessor.ofField(QUACK_DELEGATE_FIELD_NAME).setsArgumentAt(0)));
 
             for (Method method : destinationInterface.getMethods()) {
-                dynamicTypeBuilder =
-                    dynamicTypeBuilder
-                        .method(ElementMatchers.is(method))
-                        .intercept(MethodDelegation.toField(QUACK_DELEGATE_FIELD_NAME).filter(ElementMatchers.hasMethodName(method.getName())));
+                if (!method.isDefault()) {
+                    dynamicTypeBuilder =
+                        dynamicTypeBuilder
+                            .method(ElementMatchers.is(method))
+                            .intercept(MethodDelegation.toField(QUACK_DELEGATE_FIELD_NAME).filter(ElementMatchers.hasMethodName(method.getName())));
+                }
             }
 
             return dynamicTypeBuilder
