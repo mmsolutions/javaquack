@@ -1,10 +1,6 @@
 package deep.pkg;
 
-public interface TestInterface {
-
-    String getField1();
-
-    void setField1(String field1);
+public interface TestInterface extends TestSuperInterface {
 
     String getField2();
 

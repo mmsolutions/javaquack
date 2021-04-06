@@ -10,47 +10,48 @@ import net.bytebuddy.implementation.MethodDelegation;
 import net.bytebuddy.matcher.ElementMatchers;
 
 import java.lang.reflect.Method;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.stream.Collectors;
 
 public class DuckTyping {
 
-    private static final String QUACK_DELEGATE_FIELD_NAME = "quackDelegate";
+    private static final String DELEGATE_FIELD_NAME = "duckTypingDelegate";
 
     private static final String GENERATED_CLASS_NAME_DELIMITER = "DelegatedTo";
 
-    private static final String SOURCE_CLASS_CANONICAL_NAME_SPLIT_REGEX = "\\.";
+    private static final ConcurrentMap<String, Class<?>> cache = new ConcurrentHashMap<>();
 
-    private static final Map<String, Class<?>> cache = new ConcurrentHashMap<>();
+    public static void warmUp(Class<?> sourceClass, Class<?> destinationInterface) {
+        try {
+            validateDestinationInterface(destinationInterface);
+            getOrComputeEntryForCacheIfAbsent(sourceClass, destinationInterface);
+        } catch (Exception e) {
+            throw new DuckTypingException(e);
+        }
+    }
 
     @SuppressWarnings("unchecked")
     public static <S, D> D cast(S sourceObject, Class<D> destinationInterface) {
         try {
-            if (destinationInterface == null) {
-                throw new IllegalStateException("Destination interface cannot be null");
-            }
-
-            if (!destinationInterface.isInterface()) {
-                throw new IllegalStateException(destinationInterface.getCanonicalName() + " is not interface");
-            }
+            validateDestinationInterface(destinationInterface);
 
             if (sourceObject == null) {
                 return null;
             }
-
             if (destinationInterface.isInstance(sourceObject)) {
                 return destinationInterface.cast(sourceObject);
             }
 
             Class<S> sourceClass = (Class<S>) sourceObject.getClass();
 
-            Class<? extends D> generatedClass =
-                (Class<? extends D>) cache.computeIfAbsent(
-                    generateName(sourceClass, destinationInterface),
-                    key -> generateClass(sourceClass, destinationInterface, key));
-
-            return generatedClass.getConstructor(sourceClass).newInstance(sourceObject);
+            return getOrComputeEntryForCacheIfAbsent(sourceClass, destinationInterface)
+                .getConstructor(sourceClass)
+                .newInstance(sourceObject);
         } catch (Exception e) {
             throw new DuckTypingException(e);
         }
@@ -62,11 +63,16 @@ public class DuckTyping {
                 .append(destinationInterface.getCanonicalName())
                 .append(GENERATED_CLASS_NAME_DELIMITER);
 
-        for (String sourceClassCanonicalNameToken : sourceClass.getCanonicalName().split(SOURCE_CLASS_CANONICAL_NAME_SPLIT_REGEX)) {
-            stringBuilder =
-                stringBuilder
-                    .append(sourceClassCanonicalNameToken.substring(0, 1).toUpperCase())
-                    .append(sourceClassCanonicalNameToken.substring(1));
+        boolean makeUppercase = true;
+        for (char c : sourceClass.getCanonicalName().toCharArray()) {
+            if (makeUppercase) {
+                stringBuilder.append(Character.toUpperCase(c));
+                makeUppercase = false;
+            } else if (c == '.') {
+                makeUppercase = true;
+            } else {
+                stringBuilder.append(c);
+            }
         }
 
         return stringBuilder.toString();
@@ -76,24 +82,50 @@ public class DuckTyping {
         return Collections.unmodifiableMap(cache);
     }
 
+    private static void validateDestinationInterface(Class<?> destinationInterface) {
+        if (destinationInterface == null) {
+            throw new IllegalStateException("Destination interface cannot be null");
+        }
+        if (!destinationInterface.isInterface()) {
+            throw new IllegalStateException(destinationInterface.getCanonicalName() + " is not interface");
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <S, D> Class<? extends D> getOrComputeEntryForCacheIfAbsent(Class<S> sourceClass, Class<D> destinationInterface) {
+        return (Class<? extends D>) cache.computeIfAbsent(
+            generateName(sourceClass, destinationInterface),
+            key -> generateClass(sourceClass, destinationInterface, key));
+    }
+
     private static <S, D> Class<? extends D> generateClass(Class<S> sourceClass, Class<D> destinationInterface, String name) {
         try {
             DynamicType.Builder<? extends D> dynamicTypeBuilder =
                 new ByteBuddy()
                     .subclass(destinationInterface)
                     .name(name)
-                    .defineField(QUACK_DELEGATE_FIELD_NAME, sourceClass, Visibility.PRIVATE, FieldManifestation.FINAL)
+                    .defineField(DELEGATE_FIELD_NAME, sourceClass, Visibility.PRIVATE, FieldManifestation.FINAL)
                     .defineConstructor(Visibility.PUBLIC)
                     .withParameter(sourceClass)
-                    .intercept(MethodCall.invoke(Object.class.getConstructor()).onSuper().andThen(FieldAccessor.ofField(QUACK_DELEGATE_FIELD_NAME).setsArgumentAt(0)));
+                    .intercept(
+                        MethodCall
+                            .invoke(Object.class.getConstructor())
+                            .onSuper()
+                            .andThen(FieldAccessor.ofField(DELEGATE_FIELD_NAME).setsArgumentAt(0)));
 
-            for (Method method : destinationInterface.getMethods()) {
-                if (!method.isDefault()) {
-                    dynamicTypeBuilder =
-                        dynamicTypeBuilder
-                            .method(ElementMatchers.is(method))
-                            .intercept(MethodDelegation.toField(QUACK_DELEGATE_FIELD_NAME).filter(ElementMatchers.hasMethodName(method.getName())));
-                }
+            for (Method method : collectAllNonDefaultDeclaredMethods(destinationInterface)) {
+                dynamicTypeBuilder =
+                    dynamicTypeBuilder
+                        .method(ElementMatchers.is(method))
+                        .intercept(
+                            MethodDelegation
+                                .withDefaultConfiguration()
+                                .filter(
+                                    ElementMatchers
+                                        .hasMethodName(method.getName())
+                                        .and(ElementMatchers.returns(method.getReturnType()))
+                                        .and(ElementMatchers.takesArguments(method.getParameterTypes())))
+                                .toField(DELEGATE_FIELD_NAME));
             }
 
             return dynamicTypeBuilder
@@ -103,6 +135,19 @@ public class DuckTyping {
         } catch (NoSuchMethodException e) {
             throw new IllegalStateException(e);
         }
+    }
+
+    private static List<Method> collectAllNonDefaultDeclaredMethods(Class<?> parentInterface) {
+        List<Method> nonDefaultDeclaredMethods =
+            Arrays.stream(parentInterface.getDeclaredMethods())
+                .filter(method -> !method.isDefault())
+                .collect(Collectors.toList());
+
+        for (Class<?> childInterface : parentInterface.getInterfaces()) {
+            nonDefaultDeclaredMethods.addAll(collectAllNonDefaultDeclaredMethods(childInterface));
+        }
+
+        return nonDefaultDeclaredMethods;
     }
 
 }
